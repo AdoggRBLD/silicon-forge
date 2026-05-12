@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>SILICON FORGE</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#39ff14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="scanlines" aria-hidden="true"></div>
+
+  <div id="app">
+    <header id="statusbar">
+      <span class="logo">◈ SILICON FORGE</span>
+      <span id="stat-day">DAY 1/20</span>
+      <span id="stat-city">SZX</span>
+      <span id="stat-cash">₿3,000</span>
+      <span id="stat-debt" class="warn">DEBT ₿2,000</span>
+      <span id="stat-rep" class="dim">REP 0</span>
+      <button id="hw-btn" onclick="show('hw-modal')">HW: ▢ OFF</button>
+      <button class="hdr-btn" onclick="showScores()">SCORES</button>
+      <button class="hdr-btn" onclick="showManual()">MANUAL</button>
+      <button class="hdr-btn" onclick="show('settings-modal')">SETTINGS</button>
+    </header>
+
+    <div id="game-grid">
+      <section id="market-panel" class="panel">
+        <div class="panel-header">▸ MARKET — <span id="market-city"></span></div>
+        <p id="market-desc" class="city-desc"></p>
+        <div id="market-list"></div>
+        <div id="shop-section" class="hidden">
+          <div class="panel-subheader">▸ LOCAL EQUIPMENT FOR SALE</div>
+          <div id="shop-list"></div>
+        </div>
+      </section>
+
+      <div id="right-col">
+        <section class="panel">
+          <div class="panel-header">▸ PORTFOLIO</div>
+          <div class="stat-grid">
+            <div class="stat-row"><span>BALANCE</span><span id="p-cash"></span></div>
+            <div class="stat-row"><span>DEBT</span><span id="p-debt"></span></div>
+            <div class="stat-row"><span>INVENTORY</span><span id="p-inv"></span></div>
+            <div class="stat-row"><span>NET WORTH</span><span id="p-net"></span></div>
+            <div class="stat-row"><span>TODAY IN</span><span id="p-today"></span></div>
+            <div class="stat-row"><span>RUN INCOME</span><span id="p-earned"></span></div>
+          </div>
+          <div id="equipment-owned" style="margin-top:10px"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">▸ INVENTORY</div>
+          <div id="inv-list"></div>
+        </section>
+
+        <section class="panel" id="contracts-panel">
+          <div class="panel-header">▸ JOBS &amp; CONTRACTS</div>
+          <div id="contracts-list"><p class="dim" style="font-size:11px">No active jobs.</p></div>
+        </section>
+      </div>
+    </div>
+
+    <div id="action-bar">
+      <div id="travel-wrap">
+        <span class="action-label">TRAVEL:</span>
+        <div id="city-btns"></div>
+      </div>
+      <button id="end-day-btn" onclick="endDay()">END DAY ›</button>
+    </div>
+
+    <div id="log-panel" class="panel">
+      <div class="panel-header">▸ SIGNAL LOG</div>
+      <div id="log-list"></div>
+    </div>
+  </div>
+
+  <!-- INTRO -->
+  <div id="intro-modal" class="modal hidden">
+    <div class="modal-box intro-box">
+      <div class="modal-logo">◈ SILICON FORGE</div>
+      <div class="modal-sub">CHIP WARS — EARLY ACCESS</div>
+      <div class="intro-body">
+        <p>A venture fund owns <span class="warn">₿2,000</span> of you at <span class="warn">₿100/day</span>.</p>
+        <p>You have <span class="success">₿3,000</span> and <span class="success">20 days</span> to turn a profit.</p>
+        <p><strong>BUY LOW</strong> — stack inventory in Shenzhen or Tokyo.<br>
+           <strong>SELL HIGH</strong> — move it in Austin or Toronto.<br>
+           <strong>TAKE JOBS</strong> — repair contracts in the JOBS panel pay instantly.</p>
+        <p class="dim" style="margin-top:8px">Bus = 1 day travel. Plane = no day lost, costs more. Debt ticks every day.</p>
+        <p class="dim">Tap any component name to read engineering notes.</p>
+        <div class="name-input-row">
+          <label for="agent-name">AGENT DESIGNATION:</label>
+          <input type="text" id="agent-name" maxlength="20" placeholder="ANONYMOUS" autocomplete="off">
+        </div>
+      </div>
+      <button class="btn-primary" onclick="startGame()">START TRADING ›</button>
+    </div>
+  </div>
+
+  <!-- TRADE -->
+  <div id="trade-modal" class="modal hidden">
+    <div class="modal-box">
+      <div id="trade-title" class="modal-title"></div>
+      <div id="trade-price" class="dim" style="margin-bottom:4px;font-size:12px"></div>
+      <div id="trade-have" class="dim" style="margin-bottom:16px;font-size:11px"></div>
+      <div class="qty-row">
+        <label for="trade-qty">QUANTITY:</label>
+        <input type="number" id="trade-qty" min="1" value="1" oninput="updateTradeTotal()">
+      </div>
+      <div id="trade-total" style="font-size:16px;margin:12px 0;min-height:24px"></div>
+      <div id="trade-pnl" style="font-size:12px;margin-bottom:4px"></div>
+      <div id="trade-learn" class="learn-box"></div>
+      <div class="modal-actions">
+        <button id="trade-confirm" class="btn-primary" onclick="confirmTrade()">BUY</button>
+        <button onclick="closeTradeModal()">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EVENT -->
+  <div id="event-modal" class="modal hidden">
+    <div class="modal-box event-box">
+      <div id="event-header" class="event-header"></div>
+      <div id="event-title" class="modal-title"></div>
+      <p id="event-msg" style="line-height:1.6;margin-bottom:12px"></p>
+      <div id="event-effect" class="event-effect"></div>
+      <div id="event-learn" class="learn-box hidden"></div>
+      <div id="event-actions" class="modal-actions"></div>
+    </div>
+  </div>
+
+  <!-- MINI-GAME: CIRCUIT REPAIR -->
+  <div id="mg-modal" class="modal hidden">
+    <div class="modal-box mg-box">
+      <div class="modal-title" id="mg-title">CIRCUIT REPAIR</div>
+      <div id="mg-client" class="dim" style="font-size:11px;margin-bottom:6px"></div>
+      <p id="mg-problem" style="line-height:1.6;margin-bottom:16px;font-size:12px"></p>
+
+      <div id="mg-layout">
+        <div id="mg-schematic-wrap">
+          <div id="mg-schem-label" class="mg-section-label">SCHEMATIC:</div>
+          <pre id="mg-schematic" class="mg-schematic"></pre>
+          <div id="mg-slots"></div>
+        </div>
+        <div id="mg-tray-wrap">
+          <div id="mg-tray-label" class="mg-section-label">COMPONENT BIN <span class="dim">(tap to select):</span></div>
+          <div id="mg-components"></div>
+        </div>
+      </div>
+
+      <div id="mg-scope-hint" class="learn-box hidden" style="margin-top:12px"></div>
+      <div id="mg-result" class="hidden mg-result"></div>
+
+      <div class="modal-actions" style="margin-top:16px">
+        <button class="btn-primary" onclick="checkCircuit()">CHECK CIRCUIT</button>
+        <button onclick="skipMinigame()">SKIP JOB</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER -->
+  <div id="gameover-modal" class="modal hidden">
+    <div class="modal-box gameover-box">
+      <div id="gameover-title" class="gameover-title"></div>
+      <p id="gameover-msg" style="margin-bottom:16px;line-height:1.6"></p>
+      <div id="gameover-stats" class="gameover-stats"></div>
+      <div id="gameover-concepts" class="gameover-concepts"></div>
+      <div id="gameover-actions" style="margin-top:20px"></div>
+    </div>
+  </div>
+
+  <!-- HARDWARE -->
+  <div id="hw-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-title">◈ SILICON FORGE HARDWARE KIT</div>
+      <p style="line-height:1.6;margin-bottom:12px">Connect your FPGA trainer board via USB to unlock:</p>
+      <ul class="hw-list">
+        <li>Flash your in-game circuit designs to a real FPGA</li>
+        <li>See timing constraints run on physical LEDs</li>
+        <li>Real ESD event — touch the ESD test pad on the board</li>
+        <li>Live market ticker on the 7-segment display</li>
+      </ul>
+      <p class="dim" style="margin-top:16px;font-size:12px">Coming in v1.0 — completely optional.</p>
+      <div class="modal-actions"><button class="btn-primary" onclick="hide('hw-modal')">GOT IT</button></div>
+    </div>
+  </div>
+
+  <!-- SCOREBOARD -->
+  <div id="scores-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-title">◈ INCOME SCOREBOARD — TOP RUNS</div>
+      <p class="dim" style="font-size:11px;margin-bottom:14px">Sorted by net worth at game end. Top 10 runs saved locally.</p>
+      <div id="scores-list"></div>
+      <div class="modal-actions"><button class="btn-primary" onclick="hide('scores-modal')">CLOSE</button></div>
+    </div>
+  </div>
+
+  <!-- FIELD MANUAL -->
+  <div id="manual-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-title">◈ FIELD MANUAL — THIS RUN</div>
+      <p class="dim" style="font-size:11px;margin-bottom:14px">Tap item names in the market or complete jobs to add entries.</p>
+      <div id="manual-list"></div>
+      <div class="modal-actions"><button class="btn-primary" onclick="hide('manual-modal')">CLOSE</button></div>
+    </div>
+  </div>
+
+  <!-- TRAVEL -->
+  <div id="travel-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-title">▸ BOOK TRANSPORT</div>
+      <div id="travel-dest-name" class="dim" style="font-size:11px;margin-bottom:14px"></div>
+      <div id="travel-options"></div>
+      <div class="modal-actions">
+        <button onclick="hide('travel-modal')">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-title">◈ SETTINGS</div>
+      <div class="setting-row">
+        <span>MUSIC</span>
+        <button id="sett-music" class="toggle-btn" onclick="toggleMusic()">ON</button>
+      </div>
+      <div class="setting-row">
+        <span>TRACK — <span id="sett-track-name" class="warn">GRID RUNNER</span></span>
+        <button class="toggle-btn" onclick="MUSIC.nextTrack()">NEXT ›</button>
+      </div>
+      <div class="setting-row">
+        <span>VOLUME</span>
+        <input type="range" id="sett-vol" min="0" max="100" value="18" oninput="setVolume(this.value)">
+      </div>
+      <div class="setting-row">
+        <span>SFX</span>
+        <button id="sett-sfx" class="toggle-btn active" onclick="toggleSfx()">ON</button>
+      </div>
+      <div class="setting-row">
+        <span>SCANLINES</span>
+        <button id="sett-scan" class="toggle-btn active" onclick="toggleScanlines()">ON</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-primary" onclick="hide('settings-modal')">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+    }
+  </script>
+</body>
+</html>
