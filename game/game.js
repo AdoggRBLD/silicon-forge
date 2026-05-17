@@ -1,5 +1,8 @@
 'use strict';
 
+// Replace with your deployed Worker URL after running: npx wrangler deploy
+const WORKER_URL = '';
+
 // ================================================================
 //  ITEMS
 // ================================================================
@@ -1514,6 +1517,22 @@ function skipMinigame() {
 // ================================================================
 //  SCOREBOARD
 // ================================================================
+function submitGlobalScore() {
+  if (!WORKER_URL) return;
+  const nw = netWorth();
+  if (nw <= 0) return;
+  fetch(WORKER_URL + '/scores', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name:  localStorage.getItem('sf_agent_name') || 'ANONYMOUS',
+      score: nw,
+      op:    G.operation,
+      days:  G.day,
+    }),
+  }).catch(() => {});
+}
+
 function saveScore() {
   const scores=JSON.parse(localStorage.getItem('sf_scores')||'[]');
   const nw=netWorth();
@@ -1548,7 +1567,34 @@ function showScores() {
         <span class="${s.won?'success':'danger'}">${s.won?'✓ WIN':'✗'}</span>
       </div>`).join('');
   }
+
+  const gEl=qs('#global-scores-list');
+  if (WORKER_URL) {
+    gEl.innerHTML='<div class="dim" style="font-size:11px;padding:8px 0">Fetching global scores...</div>';
+    fetch(WORKER_URL+'/scores')
+      .then(r=>r.json())
+      .then(renderGlobalScores)
+      .catch(()=>{ gEl.innerHTML='<div class="dim" style="font-size:11px;padding:8px 0">Global leaderboard unavailable.</div>'; });
+  } else {
+    gEl.innerHTML='';
+  }
   show('scores-modal');
+}
+
+function renderGlobalScores(scores) {
+  const el=qs('#global-scores-list');
+  if (!scores||!scores.length){
+    el.innerHTML='<div class="dim" style="font-size:11px;padding:8px 0">No scores yet — be the first!</div>';
+    return;
+  }
+  el.innerHTML=scores.map((s,i)=>`
+    <div class="score-row">
+      <span class="score-rank dim">#${i+1}</span>
+      <span class="score-name">${s.name||'ANON'}</span>
+      <span class="score-op">${OP_LABEL[s.op]||`OP${s.op}`}</span>
+      <span class="score-nw success">₿${fmt(s.score)}</span>
+      <span class="score-day dim">Day&nbsp;${s.days}</span>
+    </div>`).join('');
 }
 
 // ================================================================
@@ -1575,7 +1621,7 @@ function showManual() {
 function checkOver() {
   if (G.gameOver) return;
   const nw=netWorth(); const cfg=OP_CONFIG[G.operation];
-  if (G.day>G.maxDays||(G.cash<=0&&nw<0)){ G.gameOver=true; render(); saveScore(); showGameOver(); }
+  if (G.day>G.maxDays||(G.cash<=0&&nw<0)){ G.gameOver=true; render(); saveScore(); submitGlobalScore(); showGameOver(); }
 }
 
 function showGameOver() {

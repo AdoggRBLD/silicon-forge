@@ -1,0 +1,7 @@
+name = "silicon-forge-scores"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[[kv_namespaces]]
+binding = "SCORES"
+id = "FILL_IN_AFTER_CREATE"
