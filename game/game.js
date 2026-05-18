@@ -1,7 +1,7 @@
 'use strict';
 
 // Replace with your deployed Worker URL after running: npx wrangler deploy
-const WORKER_URL = '';
+const WORKER_URL = 'https://silicon-forge-scores.aaronschnarrman.workers.dev';
 
 // ================================================================
 //  ITEMS
