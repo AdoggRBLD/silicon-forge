@@ -3,3 +3,4 @@
 .claude/
 game/make-icons.html
 worker/node_modules/
+worker/.wrangler/
