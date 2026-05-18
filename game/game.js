@@ -927,7 +927,7 @@ function initGame(operation=1) {
     cityMod:{}, cityModExp:{},
     reputation:0, carryMultiplier:1,
     hasScope:false, reworkStation:false, ownedEquipment:[],
-    availableJobs:[],
+    availableJobs:[], lastJobId:null,
     totalEarned:0, todayIncome:0, jobsDoneToday:0,
     travelPrices:{},
     log:[], concepts:{},
@@ -1146,7 +1146,7 @@ function advanceDay() {
 // ================================================================
 function refreshJobs() {
   const usedIds = G.availableJobs.map(j=>j.puzzle.id);
-  const pool = PUZZLES.filter(p=>!usedIds.includes(p.id)&&(!p.opMin||p.opMin<=G.operation));
+  const pool = PUZZLES.filter(p=>!usedIds.includes(p.id)&&p.id!==G.lastJobId&&(!p.opMin||p.opMin<=G.operation));
   while (G.availableJobs.length<2&&pool.length) {
     const puzzle = pool.splice(Math.floor(Math.random()*pool.length),1)[0];
     const reward = G.hasScope ? Math.floor(puzzle.rewardBase*1.4) : puzzle.rewardBase;
@@ -1156,6 +1156,7 @@ function refreshJobs() {
 function startJob(idx) {
   const job=G.availableJobs[idx];
   if (!job) return;
+  G.lastJobId = job.puzzle.id;
   G.availableJobs.splice(idx,1);
   openMiniGame(job.puzzle,job.reward);
 }
@@ -1879,6 +1880,7 @@ function openTradeModal(mode,itemId) {
   qs('#trade-learn').textContent=item.learn;
   qs('#trade-pnl').innerHTML='';
   const qi=qs('#trade-qty'); qi.max=maxQty; qi.value=Math.min(1,maxQty);
+  qs('#trade-max-btn').textContent=mode==='buy'?'BUY MAX':'SELL ALL';
   updateTradeTotal();
   show('trade-modal');
   qi.focus(); qi.select();
@@ -1898,6 +1900,12 @@ function updateTradeTotal() {
       qs('#trade-pnl').innerHTML=`P&L: <span class="${pnl>=0?'success':'danger'}">${pnl>=0?'+':''}₿${fmt(pnl)} (${pnl>=0?'+':''}${pct}%)</span>`;
     }
   }
+}
+
+function setTradeMax() {
+  if (!tradeCtx) return;
+  qs('#trade-qty').value=tradeCtx.maxQty;
+  updateTradeTotal();
 }
 
 function confirmTrade() {

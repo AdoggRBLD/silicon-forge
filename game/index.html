@@ -109,6 +109,7 @@
       <div class="qty-row">
         <label for="trade-qty">QUANTITY:</label>
         <input type="number" id="trade-qty" min="1" value="1" oninput="updateTradeTotal()">
+        <button id="trade-max-btn" onclick="setTradeMax()" style="padding:4px 10px;font-size:11px">MAX</button>
       </div>
       <div id="trade-total" style="font-size:16px;margin:12px 0;min-height:24px"></div>
       <div id="trade-pnl" style="font-size:12px;margin-bottom:4px"></div>
