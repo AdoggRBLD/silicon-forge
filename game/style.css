@@ -186,6 +186,8 @@ strong    { color: #fff; }
 }
 .contract-item:hover { border-color: var(--green); }
 .contract-item.ready { border-color: var(--green); }
+.contract-item.tutorial-job { border-color: var(--amber); background: rgba(255,170,0,0.04); }
+.contract-item.tutorial-job .contract-detail { color: var(--amber); }
 .contract-name { font-size: 12px; font-weight: bold; margin-bottom: 4px; }
 .contract-detail { font-size: 11px; color: var(--green-dim); }
 .contract-reward { color: #80ff80; font-size: 12px; margin-top: 4px; }

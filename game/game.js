@@ -623,6 +623,460 @@ const PUZZLES = [
     ],
     learn:'Crosstalk is capacitive or inductive coupling between adjacent traces. Capacitive crosstalk is proportional to dV/dt and coupling capacitance. Fast CMOS edges (2ns rise time) on unterminated traces generate enormous dV/dt — enough to disturb parallel signals. Three fixes: add series resistor to slow the edge, increase spacing between traces, or route RESET away from high-speed signals.',
   },
+  // ── Tutorial: first-run circuit primer ───────────────────────
+  {
+    id:'tutorial_first_circuit', isTutorial:true,
+    title:'TUTORIAL: YOUR FIRST CIRCUIT',
+    client:'Silicon Forge Training Lab', rewardBase:200,
+    problem:'Welcome to Silicon Forge. Every job you take teaches real engineering. Your first job: an MCU is crashing randomly under load. A bypass capacitor is missing from the VDD power pin. Place it to stabilize the supply.',
+    scopeHint:'VDD rail: 180mV p-p spike during ADC sample. Spike width ~40ns. A 100nF cap within 2mm of VDD pin reduces this to <5mV. The MCU contains thousands of logic gates — AND, NAND, OR — switching simultaneously at MHz. Each switch is a brief current draw. The cap absorbs the sum.',
+    schematic:
+`  VCC_3V3 ──[FUSE]──┬──── MCU VDD pin
+                     │
+                  [SLOT A]  ← place bypass cap here
+                     │
+                    GND
+
+  Why this matters — inside every MCU:
+    A=1 ──┐
+          ├─ NAND ○── millions of gates like this
+    B=0 ──┘          switch simultaneously at MHz.
+                     Each switch draws a current spike.
+                     Without the cap: VDD dips → crash.
+
+  Rule: every IC gets a 100nF cap right at its VDD pin.
+  This is the most-placed component in all of electronics.`,
+    slots:[{ id:'sA', label:'SLOT A — Bypass cap (VDD → GND, right at IC)', accepts:'cap_100nf' }],
+    components:[
+      { id:'cap_100nf', type:'cap_100nf', label:'◎ CAP 100nF',  hint:'High-freq bypass — kills VDD spikes' },
+      { id:'res_10k',   type:'res_10k',   label:'⧖ RES 10kΩ',  hint:'Pull-up resistor — defines floating pins' },
+      { id:'cap_100uf', type:'cap_100uf', label:'◎ CAP 100µF',  hint:'Bulk storage — too slow for IC spikes' },
+      { id:'led',       type:'led',       label:'★ LED RED',    hint:'Light emitter — not a power filter' },
+    ],
+    learn:'Decoupling (bypass) capacitors are the most-placed component in electronics — every IC needs one within millimeters of its VDD pin. They store charge and release it instantly during logic switching events, preventing voltage dips that crash the processor. The 100nF value handles MHz-range transients; the 100µF bulk cap on the rail handles slower load changes. Master these two values and you\'ll fix half of all power-related board failures.',
+  },
+  // ── Logic Lab L1: single-gate truth tables ────────────────────
+  {
+    id:'logic_and_11', type:'logic',
+    title:'LOGIC LAB: AND GATE',
+    client:'Austin Chip District', rewardBase:300,
+    problem:'An AND gate drives a motor-enable line. Both safety interlock signals are HIGH. Will the motor enable?',
+    schematic:
+`  GATE TYPE: AND  (output HIGH only when ALL inputs HIGH)
+
+       A=1 ───┐
+              ├─ AND ─── Q = ?
+       B=1 ───┘
+
+  TRUTH TABLE:
+   A  B │  Q
+  ──────┼────
+   0  0 │  0
+   0  1 │  0
+   1  0 │  0
+   1  1 │  ?  ← your turn`,
+    choices:[
+      { text:'Q = 1  (both inputs HIGH → AND outputs HIGH)',       correct:true,  explain:'Correct. AND gate: output is 1 only when ALL inputs are 1. Both safety interlocks are satisfied — motor enable asserts.' },
+      { text:'Q = 0  (inputs cancel out)',                         correct:false, explain:'An AND gate does not cancel inputs. It outputs 1 when all inputs are 1. Think: a series of switches — all must close.' },
+      { text:'Q = undefined  (floating output when inputs match)', correct:false, explain:'AND is a deterministic combinational gate. Matching inputs do not cause floating — output is always defined.' },
+      { text:'Q = same as A  (B has no effect)',                   correct:false, explain:'Both inputs matter equally in an AND gate. Neither input dominates — the output is the logical AND of both.' },
+    ],
+    learn:'AND gate: output is HIGH only when ALL inputs are HIGH. Think of it as a series circuit — every switch must be closed. The truth table has only one HIGH output row: (1,1)→1. In digital design, AND gates implement "all conditions must be met" logic.',
+  },
+  {
+    id:'logic_and_10', type:'logic',
+    title:'LOGIC LAB: AND GATE — PARTIAL INPUT',
+    client:'Toronto Maker Hub', rewardBase:300,
+    problem:'A two-input AND gate has A=1, B=0. One safety interlock is active, the other is not. Does the motor enable?',
+    schematic:
+`  GATE TYPE: AND  (output HIGH only when ALL inputs HIGH)
+
+       A=1 ───┐
+              ├─ AND ─── Q = ?
+       B=0 ───┘
+
+  TRUTH TABLE:
+   A  B │  Q
+  ──────┼────
+   0  0 │  0
+   0  1 │  0
+   1  0 │  ?  ← your turn
+   1  1 │  1`,
+    choices:[
+      { text:'Q = 0  (all inputs must be HIGH — one is LOW)',       correct:true,  explain:'Correct. AND gate requires ALL inputs HIGH. B=0 pulls the output LOW regardless of A. The motor stays disabled — the interlock is working as designed.' },
+      { text:'Q = 1  (A is HIGH so output is HIGH)',                correct:false, explain:'AND is not OR. A single HIGH input is not enough. Every input must be HIGH for AND to output HIGH.' },
+      { text:'Q = same as B  (follows the LOW input)',              correct:false, explain:'AND does not simply pass through one input. The output is the logical AND of all inputs — not a copy of any single one.' },
+      { text:'Q = undefined  (conflicting inputs cause contention)', correct:false, explain:'There is no contention in digital logic for separate inputs. AND(1,0) = 0. Perfectly deterministic.' },
+    ],
+    learn:'AND gate with one LOW input always outputs LOW — regardless of the other inputs. This is the "weakest link" property: a single LOW input dominates. In safety systems, AND gates enforce that ALL conditions must be satisfied before enabling an output.',
+  },
+  {
+    id:'logic_or_01', type:'logic',
+    title:'LOGIC LAB: OR GATE',
+    client:'Shenzhen Proto House', rewardBase:300,
+    problem:'An OR gate combines two interrupt request lines. Line A is idle (0). Line B fires (1). Does the CPU see an interrupt?',
+    schematic:
+`  GATE TYPE: OR  (output HIGH when ANY input is HIGH)
+
+       A=0 ───┐
+              ├─ OR ─── Q = ?
+       B=1 ───┘
+
+  TRUTH TABLE:
+   A  B │  Q
+  ──────┼────
+   0  0 │  0
+   0  1 │  ?  ← your turn
+   1  0 │  1
+   1  1 │  1`,
+    choices:[
+      { text:'Q = 1  (at least one input HIGH → OR outputs HIGH)',  correct:true,  explain:'Correct. OR gate: any HIGH input produces a HIGH output. B=1 asserts the interrupt line — the CPU will service it.' },
+      { text:'Q = 0  (A is LOW, B not strong enough alone)',        correct:false, explain:'OR does not require all inputs — just one. A single HIGH input is sufficient for OR to output HIGH.' },
+      { text:'Q = 0.5  (average of inputs)',                        correct:false, explain:'Digital logic has no fractions. Every signal is 0 or 1. OR(0,1) = 1, deterministically.' },
+      { text:'Q = same as A  (first input dominates)',              correct:false, explain:'No input "dominates" in OR. The gate outputs 1 if ANY input is 1. A=0 does not suppress B=1.' },
+    ],
+    learn:'OR gate: output is HIGH when ANY input is HIGH. Think of it as a parallel circuit — closing any one switch turns on the light. Common use: combining interrupt signals, alarm conditions, or any "at least one" logic.',
+  },
+  {
+    id:'logic_or_00', type:'logic',
+    title:'LOGIC LAB: OR GATE — ALL INPUTS LOW',
+    client:'Tokyo Proto Lab', rewardBase:300,
+    problem:'Two fault-detection OR inputs are both clear (0). Does the fault alarm trigger?',
+    schematic:
+`  GATE TYPE: OR  (output HIGH when ANY input is HIGH)
+
+       A=0 ───┐
+              ├─ OR ─── Q = ?
+       B=0 ───┘
+
+  TRUTH TABLE:
+   A  B │  Q
+  ──────┼────
+   0  0 │  ?  ← your turn
+   0  1 │  1
+   1  0 │  1
+   1  1 │  1`,
+    choices:[
+      { text:'Q = 0  (no inputs HIGH → OR outputs LOW)',            correct:true,  explain:'Correct. OR(0,0) = 0. No fault condition is active — the alarm stays silent. This is the only input combination that holds an OR gate low.' },
+      { text:'Q = 1  (OR always outputs HIGH)',                     correct:false, explain:'OR outputs HIGH only when at least one input is HIGH. With all inputs LOW, the output is LOW. OR(0,0) is the one case where OR outputs 0.' },
+      { text:'Q = undefined  (both low causes float)',              correct:false, explain:'OR(0,0) is perfectly defined — the output is 0. Digital gates have defined outputs for all input combinations.' },
+      { text:'Q = 1  (output defaults HIGH when idle)',             correct:false, explain:'OR has no "default." It purely computes the logical OR of its inputs. No inputs active = output inactive = 0.' },
+    ],
+    learn:'OR(0,0) = 0 is the one case where OR outputs LOW. All other combinations output HIGH. This property is why OR gates are used for fault alarms — the output is only LOW when there are zero active fault signals.',
+  },
+  {
+    id:'logic_not_1', type:'logic',
+    title:'LOGIC LAB: NOT GATE (INVERTER)',
+    client:'Austin Chip District', rewardBase:280,
+    problem:'A NOT gate drives an active-low chip enable. The CPU asserts a HIGH signal. Is the chip enabled?',
+    schematic:
+`  GATE TYPE: NOT  (single input — inverts the input)
+
+       A=1 ───┤ NOT ○─── Q = ?
+
+  TRUTH TABLE:
+   A  │  Q
+  ────┼────
+   0  │  1
+   1  │  ?  ← your turn
+
+  (○ = inversion bubble — output is flipped)`,
+    choices:[
+      { text:'Q = 0  (NOT inverts: HIGH in → LOW out)',             correct:true,  explain:'Correct. NOT gate inverts its input. A=1 → Q=0. The active-low chip enable is asserted (active-low means the chip enables when the pin is LOW).' },
+      { text:'Q = 1  (output follows input)',                        correct:false, explain:'NOT is a buffer with inversion — it does the opposite of a buffer. HIGH input → LOW output.' },
+      { text:'Q = undefined  (no second input)',                     correct:false, explain:'NOT has only one input by design. Single-input gates are perfectly defined. A=1 → Q=0 always.' },
+      { text:'Q = 1  (HIGH input charges output HIGH)',              correct:false, explain:'NOT gate does not charge — it inverts. The output logic level is the complement of the input, not a function of charge.' },
+    ],
+    learn:'NOT gate (inverter): single input, output is always the logical complement. A=1 → Q=0; A=0 → Q=1. Active-low signals are everywhere in digital design: chip enables, reset pins, interrupts. A NOT gate converts active-high control signals to active-low.',
+  },
+  {
+    id:'logic_not_0', type:'logic',
+    title:'LOGIC LAB: NOT GATE — LOW INPUT',
+    client:'Toronto Maker Hub', rewardBase:280,
+    problem:'A NOT gate on a reset line. The reset button is not pressed — input is LOW (0). Is the MCU being held in reset?',
+    schematic:
+`  GATE TYPE: NOT  (single input — inverts the input)
+
+       A=0 ───┤ NOT ○─── Q = ?
+
+  TRUTH TABLE:
+   A  │  Q
+  ────┼────
+   0  │  ?  ← your turn
+   1  │  0`,
+    choices:[
+      { text:'Q = 1  (NOT inverts: LOW in → HIGH out)',             correct:true,  explain:'Correct. NOT(0) = 1. Button not pressed (0) → reset line HIGH → MCU running normally. Press the button → 0 inverted → 1... wait, this would be wired active-low. The logic is working as designed.' },
+      { text:'Q = 0  (LOW in → LOW out — signal passes through)',   correct:false, explain:'A NOT gate does not pass through — it inverts. LOW input always produces a HIGH output.' },
+      { text:'Q = same as A',                                        correct:false, explain:'A buffer passes through the input unchanged. A NOT gate is a buffer with inversion — it always outputs the opposite.' },
+      { text:'Q = undefined  (floating input gives floating output)', correct:false, explain:'The input is defined at 0, not floating. A defined LOW input produces a defined HIGH output. NOT(0) = 1.' },
+    ],
+    learn:'NOT(0) = 1. The inverter is the simplest building block in digital logic — and one of the most used. Active-low reset lines use NOT gates to convert: button pressed → wire LOW → NOT → HIGH → MCU reset line asserted. The inversion lets you use a simple pull-up + button to create a clean reset circuit.',
+  },
+  {
+    id:'logic_nand_11', type:'logic',
+    title:'LOGIC LAB: NAND GATE — THE UNIVERSAL GATE',
+    client:'Singapore Arena Server', rewardBase:380,
+    problem:'A NAND gate is used as an interlocked shutdown: both fault flags are HIGH. Does the system shutdown assert?',
+    schematic:
+`  GATE TYPE: NAND  (NOT AND — AND followed by inversion)
+
+       A=1 ───┐
+              ├─ & ○─── Q = ?
+       B=1 ───┘
+  (○ = inversion bubble on output)
+
+  TRUTH TABLE:
+   A  B │  Q
+  ──────┼────
+   0  0 │  1
+   0  1 │  1
+   1  0 │  1
+   1  1 │  ?  ← CRITICAL: this is the key row`,
+    choices:[
+      { text:'Q = 0  (NAND inverts AND — both HIGH → output LOW)',  correct:true,  explain:'Correct. NAND(1,1) = 0. AND(1,1)=1 then NOT(1)=0. Both faults active → NAND output goes LOW → asserts the active-low shutdown signal. This is why NAND gates are everywhere in safety circuits.' },
+      { text:'Q = 1  (both HIGH → output HIGH, like AND)',          correct:false, explain:'This confuses AND and NAND. AND(1,1)=1, but NAND adds the inversion: NOT(AND(1,1)) = NOT(1) = 0. The N in NAND means NOT.' },
+      { text:'Q = 1  (output stays HIGH when inputs agree)',         correct:false, explain:'NAND(1,1) = 0. It is specifically the case where both inputs are HIGH that the NAND output goes LOW — the one row where NAND differs most obviously from OR.' },
+      { text:'Q = undefined  (NAND is non-deterministic)',           correct:false, explain:'NAND is fully deterministic. It is simply AND followed by NOT. Every input combination has a defined output.' },
+    ],
+    learn:'NAND is AND with an inverted output. The critical insight: NAND(1,1) = 0 — the only row where NAND outputs LOW. NAND is called the "universal gate" because any logic function (AND, OR, NOT, XOR, flip-flops) can be built from NAND gates alone. Nearly all CMOS logic is NAND-based at the transistor level.',
+  },
+  {
+    id:'logic_nor_00', type:'logic',
+    title:'LOGIC LAB: NOR GATE',
+    client:'IHP Shuttle Consortium', rewardBase:380,
+    problem:'A NOR gate monitors two data lines. Both are idle (0). Does the NOR output assert?',
+    schematic:
+`  GATE TYPE: NOR  (NOT OR — OR followed by inversion)
+
+       A=0 ───┐
+              ├─≥1○─── Q = ?
+       B=0 ───┘
+  (○ = inversion bubble on output)
+
+  TRUTH TABLE:
+   A  B │  Q
+  ──────┼────
+   0  0 │  ?  ← CRITICAL: the one HIGH row
+   0  1 │  0
+   1  0 │  0
+   1  1 │  0`,
+    choices:[
+      { text:'Q = 1  (NOR inverts OR — all LOW → output HIGH)',     correct:true,  explain:'Correct. NOR(0,0) = 1. OR(0,0)=0, then NOT(0)=1. NOR is HIGH only when ALL inputs are LOW — the exact opposite of OR. This is the one row where NOR outputs HIGH.' },
+      { text:'Q = 0  (no inputs HIGH → no output)',                 correct:false, explain:'This confuses NOR with OR. OR(0,0)=0 yes, but NOR inverts that: NOT(0)=1. NOR is active-low: it asserts HIGH when the bus is quiet.' },
+      { text:'Q = 0  (NOR always outputs LOW)',                     correct:false, explain:'NOR(0,0) = 1. NOR outputs LOW for most input combinations, but HIGH for the all-zeros case. The N in NOR means NOT.' },
+      { text:'Q = same as first input',                             correct:false, explain:'NOR does not pass through any input. It computes OR of all inputs and then inverts. NOR(0,0) = NOT(OR(0,0)) = NOT(0) = 1.' },
+    ],
+    learn:'NOR is OR with an inverted output. NOR(0,0) = 1 is the only HIGH output row — NOR is HIGH when ALL inputs are LOW. NOR is also a universal gate: any logic function can be built from NOR gates alone. Together, NAND and NOR are the two universal gates that every CMOS foundry optimizes first.',
+  },
+  // ── Logic Lab L2: two-gate combinations ──────────────────────
+  {
+    id:'logic2_not_nand_hi', type:'logic',
+    title:'LOGIC LAB: NOT FROM NAND (HIGH INPUT)',
+    client:'Toronto Maker Hub', rewardBase:360,
+    problem:'A designer needs a NOT gate but only has NAND gates in stock. They tie both NAND inputs together. With A=1, what does the output Q equal?',
+    schematic:
+`  TECHNIQUE: build NOT from a single NAND gate
+
+  A=1 ──┬──┐
+        └──┤ NAND ○─── Q = ?
+           │ (both inputs tied to A)
+
+  Verify: NAND truth table with tied inputs:
+   A  A │ NAND    NOT equivalent:
+  ──────┼──────    A │ NOT A
+   0  0 │  1       0 │   1   ← same!
+   1  1 │  ?  ←   1 │   0   ← same!
+
+  Key insight: NAND(A,A) = NOT(A AND A) = NOT A`,
+    choices:[
+      { text:'Q = 0  (NAND(1,1) = 0, same as NOT 1)',              correct:true,  explain:'Correct. NAND(1,1) = NOT(1 AND 1) = NOT(1) = 0. Tying both inputs makes NAND behave identically to NOT. This is the first NAND-as-universal-gate trick every digital designer learns.' },
+      { text:'Q = 1  (A is HIGH so output stays HIGH)',             correct:false, explain:'NAND(1,1) = 0, not 1. High inputs on a tied NAND pull the output LOW — that\'s what makes it act as a NOT gate.' },
+      { text:'Q = undefined  (tied inputs cause contention)',       correct:false, explain:'There is no contention when inputs are tied — both see the same signal simultaneously. NAND(1,1) is perfectly defined as 0.' },
+      { text:'Q = same as A  (passes through when tied)',           correct:false, explain:'The opposite: NAND(A,A) = NOT A. It inverts. Tying inputs to a NAND creates an inverter, not a buffer.' },
+    ],
+    learn:'NAND(A,A) = NOT A. Tying both NAND inputs to the same signal turns it into a NOT gate. This works because NAND(A,A) = NOT(A AND A) = NOT A. It\'s the simplest NAND-builds-everything demonstration. In CMOS, a NOT gate is just a NAND with its inputs tied — literally the same transistors.',
+  },
+  {
+    id:'logic2_not_nand_lo', type:'logic',
+    title:'LOGIC LAB: NOT FROM NAND (LOW INPUT)',
+    client:'Austin Chip District', rewardBase:360,
+    problem:'Same NAND-as-NOT circuit. Now A=0. What is Q?',
+    schematic:
+`  TECHNIQUE: build NOT from a single NAND gate
+
+  A=0 ──┬──┐
+        └──┤ NAND ○─── Q = ?
+           │ (both inputs tied to A)
+
+  Verify: NAND truth table with tied inputs:
+   A  A │ NAND    NOT equivalent:
+  ──────┼──────    A │ NOT A
+   0  0 │  ?  ←   0 │   1   ← same!
+   1  1 │  0       1 │   0   ← same!`,
+    choices:[
+      { text:'Q = 1  (NAND(0,0) = 1, same as NOT 0)',              correct:true,  explain:'Correct. NAND(0,0) = NOT(0 AND 0) = NOT(0) = 1. The tied-NAND inverter works for both input values. Low in, high out — exactly what NOT does.' },
+      { text:'Q = 0  (both inputs LOW → output LOW)',               correct:false, explain:'NAND(0,0) = 1, not 0. This is one of the most common confusions: NAND outputs HIGH when ANY input is low. NOT(0)=1.' },
+      { text:'Q = same as A  (0 passes through)',                   correct:false, explain:'NAND(A,A) = NOT A. If A=0, Q=1. It inverts. A zero input into a tied NAND produces a one output.' },
+      { text:'Q = undefined  (zero input causes float)',            correct:false, explain:'Digital gates have defined behavior for all input combinations. NAND(0,0) = 1, always. No floating.' },
+    ],
+    learn:'NOT(0) = 1. The NAND-as-NOT circuit works for both input states: NAND(0,0)=1 and NAND(1,1)=0 — exactly matching the NOT truth table. This is not a coincidence. NAND is architecturally a NOT applied to AND, so collapsing the two inputs into one recovers the NOT.',
+  },
+  {
+    id:'logic2_and_from_nand_11', type:'logic',
+    title:'LOGIC LAB: AND FROM TWO NAND GATES (A=1, B=1)',
+    client:'Singapore Arena Server', rewardBase:420,
+    problem:'Build AND from NAND gates: chain a NAND into a tied-NAND (NOT). With A=1, B=1, what does Q output?',
+    schematic:
+`  TECHNIQUE: AND gate from two NAND gates
+
+  A=1 ──┐
+        ├─ NAND ○── N1 ──┬──┐
+  B=1 ──┘                └──┤ NAND ○─── Q = ?
+                            │ (N1 tied to both inputs)
+
+  Two-step trace:
+    Step 1: N1 = NAND(A=1, B=1) = ?
+    Step 2: Q  = NAND(N1, N1)  = NOT(N1) = ?
+
+  NAND then NOT-of-NAND = AND (double negation cancels)`,
+    choices:[
+      { text:'Q = 1  (AND(1,1) = 1 — double negation cancels)',    correct:true,  explain:'Correct. Step 1: NAND(1,1) = 0 → N1=0. Step 2: NAND(0,0) = 1 → Q=1. Two NANDs in series = NOT(NOT(AND(A,B))) = AND(A,B). AND(1,1) = 1.' },
+      { text:'Q = 0  (NAND output inverts everything)',             correct:false, explain:'Only one inversion from the first NAND. The second NAND (with tied inputs) re-inverts N1, recovering the AND result. AND(1,1)=1, so Q=1.' },
+      { text:'Q = 0  (N1=0 propagates to output)',                  correct:false, explain:'N1=0, but the second NAND gate inverts N1. NAND(0,0)=1. You need to trace through both gates, not just the first.' },
+      { text:'Q = undefined  (two gates, unpredictable)',           correct:false, explain:'Two gates in series are perfectly deterministic. Trace step by step: NAND(1,1)=0, then NAND(0,0)=1. No ambiguity.' },
+    ],
+    learn:'AND from NAND: NAND(NAND(A,B), NAND(A,B)) = NOT(NOT(AND(A,B))) = AND(A,B). The two inversions cancel. In CMOS, AND gates are physically implemented as NAND+NOT internally — because NAND is easier to build in transistors (fewer devices, faster switching). The AND gate you use in a schematic is secretly a NAND+NOT inside the package.',
+  },
+  {
+    id:'logic2_and_from_nand_10', type:'logic',
+    title:'LOGIC LAB: AND FROM TWO NAND GATES (A=1, B=0)',
+    client:'Tokyo Proto Lab', rewardBase:420,
+    problem:'Same NAND-AND circuit. Now A=1, B=0. Trace both gates to find Q.',
+    schematic:
+`  TECHNIQUE: AND gate from two NAND gates
+
+  A=1 ──┐
+        ├─ NAND ○── N1 ──┬──┐
+  B=0 ──┘                └──┤ NAND ○─── Q = ?
+                            │ (N1 tied)
+
+  Two-step trace:
+    Step 1: N1 = NAND(A=1, B=0) = ?
+    Step 2: Q  = NAND(N1, N1)  = NOT(N1) = ?
+
+  AND(1,0) should equal 0 — does your trace agree?`,
+    choices:[
+      { text:'Q = 0  (AND(1,0) = 0 — one input low kills output)', correct:true,  explain:'Correct. Step 1: NAND(1,0)=1 → N1=1. Step 2: NAND(1,1)=0 → Q=0. Two NANDs recover AND. AND(1,0)=0 confirmed.' },
+      { text:'Q = 1  (N1 is HIGH so output stays HIGH)',            correct:false, explain:'N1=1 means the second NAND sees (1,1), which outputs 0. A high N1 does not pass through — the second NAND inverts it.' },
+      { text:'Q = 1  (NAND of NAND doubles the 1)',                 correct:false, explain:'Double negation does not double the value — it cancels. NOT(NOT(x)) = x. NAND(NAND(1,0),NAND(1,0)) = AND(1,0) = 0.' },
+      { text:'Q = undefined  (mixed inputs cause instability)',     correct:false, explain:'AND(1,0)=0, perfectly stable. Mixed inputs are handled deterministically by each gate in sequence.' },
+    ],
+    learn:'AND(A,B) = NAND(NAND(A,B), NAND(A,B)). Trace both steps: first NAND gives the inverted AND result, second NAND (tied inputs) re-inverts it back. When A=1 and B=0: NAND(1,0)=1, NAND(1,1)=0 → AND=0. The NAND-chain recovers AND for all four input combinations.',
+  },
+  {
+    id:'logic2_not_nor_lo', type:'logic',
+    title:'LOGIC LAB: NOT FROM NOR (TIED INPUTS)',
+    client:'Shenzhen Proto House', rewardBase:360,
+    problem:'NOR is the second universal gate. Tie both NOR inputs to A=0. What does Q output?',
+    schematic:
+`  TECHNIQUE: build NOT from a single NOR gate
+
+  A=0 ──┬──┐
+        └──┤ NOR ○─── Q = ?
+           │ (both inputs tied to A)
+
+  Verify: NOR truth table with tied inputs:
+   A  A │  NOR    NOT equivalent:
+  ──────┼──────    A │ NOT A
+   0  0 │  ?  ←   0 │   1
+   1  1 │  0       1 │   0
+
+  NOR(A,A) = NOT(A OR A) = NOT A`,
+    choices:[
+      { text:'Q = 1  (NOR(0,0) = 1, same as NOT 0)',               correct:true,  explain:'Correct. NOR(0,0) = NOT(0 OR 0) = NOT(0) = 1. NOR with tied inputs is a NOT gate — the NOR version of the NAND trick. NOR is the second universal gate.' },
+      { text:'Q = 0  (both inputs LOW → output LOW)',               correct:false, explain:'NOR(0,0) = 1, not 0. NOR outputs HIGH when ALL inputs are LOW — that\'s the one HIGH case in the NOR truth table. Tied to 0, it acts as NOT(0)=1.' },
+      { text:'Q = same as A  (tied inputs pass through)',           correct:false, explain:'NOR(A,A) = NOT A. Low input → high output. It inverts, just like NAND(A,A) does.' },
+      { text:'Q = undefined  (NOR is non-deterministic with tied inputs)', correct:false, explain:'Tied inputs are perfectly defined. NOR(0,0)=1 every time. No instability.' },
+    ],
+    learn:'NOR(A,A) = NOT A, just like NAND(A,A) = NOT A. Both universal gates can build any other gate when configured right. NOR is predominant in some older CMOS families. The rule: any logic function can be built from only NAND gates, or from only NOR gates. Your chip fab doesn\'t need to stock AND, OR, XOR, or NOT — just NANDs.',
+  },
+  {
+    id:'logic2_or_from_nor_01', type:'logic',
+    title:'LOGIC LAB: OR FROM TWO NOR GATES (A=0, B=1)',
+    client:'IHP Shuttle Consortium', rewardBase:420,
+    problem:'Build OR from NOR gates: chain NOR into a tied-NOR (NOT). With A=0, B=1, trace both steps to find Q.',
+    schematic:
+`  TECHNIQUE: OR gate from two NOR gates
+
+  A=0 ──┐
+        ├─ NOR ○── N1 ──┬──┐
+  B=1 ──┘               └──┤ NOR ○─── Q = ?
+                           │ (N1 tied)
+
+  Two-step trace:
+    Step 1: N1 = NOR(A=0, B=1) = ?
+    Step 2: Q  = NOR(N1, N1)  = NOT(N1) = ?
+
+  OR(0,1) should equal 1 — verify with your trace.`,
+    choices:[
+      { text:'Q = 1  (OR(0,1) = 1 — double negation recovers OR)',  correct:true,  explain:'Correct. Step 1: NOR(0,1)=0 → N1=0. Step 2: NOR(0,0)=1 → Q=1. Two NORs = NOT(NOT(OR(A,B))) = OR(A,B). OR(0,1)=1.' },
+      { text:'Q = 0  (NOR always inverts to LOW)',                   correct:false, explain:'Only the first NOR inverts. The second NOR (tied) re-inverts N1, recovering the OR result. OR(0,1)=1.' },
+      { text:'Q = 0  (N1=0 gives LOW output)',                       correct:false, explain:'N1=0, but the second NOR inverts it: NOR(0,0)=1. Trace both gates — the second gate flips N1 back.' },
+      { text:'Q = undefined',                                         correct:false, explain:'NOR(NOR(0,1), NOR(0,1)) is completely defined. Trace: NOR(0,1)=0, NOR(0,0)=1. Q=1.' },
+    ],
+    learn:'OR(A,B) = NOR(NOR(A,B), NOR(A,B)). Identical pattern to AND-from-NAND. The two inversions cancel and you recover the original gate. NAND builds AND; NOR builds OR. Both universal gates follow the same double-negation cancellation pattern.',
+  },
+  {
+    id:'logic2_demorgan', type:'logic',
+    title:'LOGIC LAB: DE MORGAN\'S LAW',
+    client:'TSMC Bringup Lab', rewardBase:480,
+    problem:'De Morgan\'s theorem: NOT(A AND B) = (NOT A) OR (NOT B). Verify with A=1, B=0. Which statement correctly describes NAND(1,0)?',
+    schematic:
+`  DE MORGAN'S THEOREM — verify with A=1, B=0:
+
+  Formulation 1: NAND(A,B)
+    A=1 ──┐
+          ├─ NAND ○─── ?
+    B=0 ──┘
+
+  Formulation 2: (NOT A) OR (NOT B)
+    NOT(1) = 0
+    NOT(0) = 1
+    0 OR 1 = ?
+
+  De Morgan says both must give the same answer.`,
+    choices:[
+      { text:'Both equal 1 — NAND(1,0) = 1 and NOT(1) OR NOT(0) = 0 OR 1 = 1', correct:true,  explain:'Correct. NAND(1,0) = NOT(1 AND 0) = NOT(0) = 1. De Morgan: NOT(1) OR NOT(0) = 0 OR 1 = 1. Same result. De Morgan\'s theorem is verified for these inputs.' },
+      { text:'NAND gives 1 but De Morgan gives 0 — they disagree',               correct:false, explain:'They agree. NOT(1) OR NOT(0) = 0 OR 1 = 1. NAND(1,0) = 1. De Morgan\'s theorem holds for all input combinations without exception.' },
+      { text:'Both equal 0 — AND(1,0)=0 so NAND must also be 0',                 correct:false, explain:'NAND is NOT AND — the output is inverted. AND(1,0)=0, so NAND(1,0) = NOT(0) = 1.' },
+      { text:'The result depends on which formulation is evaluated first',        correct:false, explain:'Boolean algebra is order-independent. NAND(A,B) and NOT A OR NOT B are mathematically equivalent — same truth table for all inputs, always.' },
+    ],
+    learn:'De Morgan\'s Theorem: NOT(A AND B) = (NOT A) OR (NOT B). Its dual: NOT(A OR B) = (NOT A) AND (NOT B). This is why a NAND gate can replace a negative-OR gate and vice versa — they are logically identical. Every FPGA synthesizer and logic optimizer uses De Morgan\'s transformations to simplify circuits. Know these two formulas and you understand how synthesis tools think.',
+  },
+  {
+    id:'logic2_buffer', type:'logic',
+    title:'LOGIC LAB: BUFFER — DOUBLE NOT',
+    client:'Austin Chip District', rewardBase:320,
+    problem:'Two NOT gates in series: NOT(NOT(A)). With A=0, what is the final output Q? This circuit is called a buffer.',
+    schematic:
+`  TECHNIQUE: buffer from two NOT (inverter) gates
+
+  A=0 ──┤ NOT ○── N1 ──┤ NOT ○─── Q = ?
+
+  Two-step trace:
+    Step 1: N1 = NOT(A=0) = 1
+    Step 2: Q  = NOT(N1=1) = ?
+
+  A buffer passes the signal unchanged but
+  adds drive strength — useful for fanout.`,
+    choices:[
+      { text:'Q = 0  (NOT(NOT(0)) = 0 — double negation = original)', correct:true,  explain:'Correct. NOT(0)=1, NOT(1)=0. The two inversions cancel: NOT(NOT(x)) = x. Output equals input. This circuit is a buffer — same logic level, but the second gate provides fresh drive current.' },
+      { text:'Q = 1  (two NOTs amplify the signal)',                   correct:false, explain:'NOT gates do not amplify. NOT(NOT(0))=0. Two inversions return you to the original value.' },
+      { text:'Q = undefined  (two inversions cause oscillation)',      correct:false, explain:'Two NOT gates in series are stable — the output is fixed once the input is defined. An odd number of NOTs in a ring creates a ring oscillator; an even number is a stable buffer.' },
+      { text:'Q = 1  (the first NOT overrides the second)',            correct:false, explain:'Neither gate "overrides" the other. Trace in order: N1=NOT(0)=1, then Q=NOT(1)=0. The second gate inverts N1.' },
+    ],
+    learn:'NOT(NOT(x)) = x. Two inverters in series form a buffer — the logic level passes through unchanged, but the signal gets "refreshed." Buffers are used for fanout (one signal driving many inputs) and signal restoration (rebuilding a degraded edge). In FPGA design, every long routing net gets a buffer to maintain signal integrity across the chip.',
+  },
 ];
 
 // ================================================================
@@ -927,7 +1381,7 @@ function initGame(operation=1) {
     cityMod:{}, cityModExp:{},
     reputation:0, carryMultiplier:1,
     hasScope:false, reworkStation:false, ownedEquipment:[],
-    availableJobs:[], lastJobId:null,
+    availableJobs:[], lastJobIds:[],
     totalEarned:0, todayIncome:0, jobsDoneToday:0,
     travelPrices:{},
     log:[], concepts:{},
@@ -1146,7 +1600,8 @@ function advanceDay() {
 // ================================================================
 function refreshJobs() {
   const usedIds = G.availableJobs.map(j=>j.puzzle.id);
-  const pool = PUZZLES.filter(p=>!usedIds.includes(p.id)&&p.id!==G.lastJobId&&(!p.opMin||p.opMin<=G.operation));
+  const recentIds = G.lastJobIds || [];
+  const pool = PUZZLES.filter(p=>!usedIds.includes(p.id)&&!recentIds.includes(p.id)&&(!p.opMin||p.opMin<=G.operation));
   while (G.availableJobs.length<2&&pool.length) {
     const puzzle = pool.splice(Math.floor(Math.random()*pool.length),1)[0];
     const reward = G.hasScope ? Math.floor(puzzle.rewardBase*1.4) : puzzle.rewardBase;
@@ -1156,7 +1611,7 @@ function refreshJobs() {
 function startJob(idx) {
   const job=G.availableJobs[idx];
   if (!job) return;
-  G.lastJobId = job.puzzle.id;
+  G.lastJobIds = [job.puzzle.id, ...(G.lastJobIds||[])].slice(0,3);
   G.availableJobs.splice(idx,1);
   openMiniGame(job.puzzle,job.reward);
 }
@@ -1240,6 +1695,7 @@ function openMiniGame(puzz,reward) {
   if (puzz.type==='diagnosis') openDiagnosisGame(puzz,reward);
   else if (puzz.type==='foundry') openFoundryGame(puzz,reward);
   else if (puzz.type==='arena')   openCircuitGame(puzz,reward);
+  else if (puzz.type==='logic')   openLogicLabGame(puzz,reward);
   else openCircuitGame(puzz,reward);
 }
 
@@ -1326,9 +1782,11 @@ function checkCircuit() {
     G.totalEarned+=activeReward; G.todayIncome+=activeReward;
     G.jobsDoneToday++;
     G.concepts['circuit_'+activePuzzle.id]={name:activePuzzle.title,learn:activePuzzle.learn};
+    if (activePuzzle.isTutorial) localStorage.setItem('sf_tutorial_done','1');
     resultEl.className='mg-result win';
     const dayWarn = G.jobsDoneToday>=3 ? '<br><span class="warn">⚠ 3 JOBS DONE — day will advance when you collect.</span>' : '';
-    resultEl.innerHTML=`✓ CIRCUIT VERIFIED — ₿${fmt(activeReward)} transferred. +15 REP.<br><br><strong>What you fixed:</strong> ${activePuzzle.learn}${dayWarn}`;
+    const tutorialNote = activePuzzle.isTutorial ? '<br><br><span class="dim">Tutorial complete — future runs skip this intro job.</span>' : '';
+    resultEl.innerHTML=`✓ CIRCUIT VERIFIED — ₿${fmt(activeReward)} transferred. +15 REP.<br><br><strong>What you fixed:</strong> ${activePuzzle.learn}${tutorialNote}${dayWarn}`;
     addLog(`Repair complete: ${activePuzzle.title}. Earned ₿${fmt(activeReward)}.`,'success');
     qs('#mg-modal .modal-actions').innerHTML=`<button class="btn-primary" onclick="closeMiniGame()">COLLECT ₿${fmt(activeReward)} ›</button>`;
     render();
@@ -1495,6 +1953,67 @@ function checkFoundry() {
     puzzleChecked=false;
     resultEl.className='mg-result fail';
     resultEl.textContent=`✗ MARGIN ${(margin*100).toFixed(0)}% — target is ${(target*100).toFixed(0)}%. Retune parameters and try again.`;
+  }
+}
+
+function openLogicLabGame(puzz,reward) {
+  activePuzzle=puzz; activeReward=reward;
+  puzzleChecked=false; activeChoice=null;
+  puzzleFills={}; puzzleSelected=null;
+  qs('#mg-title').textContent=puzz.title;
+  qs('#mg-client').textContent=`${puzz.client} — ₿${fmt(reward)} reward`;
+  qs('#mg-problem').textContent=puzz.problem;
+  qs('#mg-schem-label').textContent='GATE DIAGRAM:';
+  qs('#mg-schematic').textContent=puzz.schematic;
+  qs('#mg-scope-hint').classList.add('hidden');
+  qs('#mg-slots').innerHTML=''; qs('#mg-slots').style.display='none';
+  qs('#mg-tray-label').innerHTML='SELECT OUTPUT <span class="dim">(what does Q equal?):</span>';
+  const compsEl=qs('#mg-components');
+  compsEl.innerHTML='';
+  [...puzz.choices].sort(()=>Math.random()-0.5).forEach(choice=>{
+    const btn=document.createElement('button');
+    btn.className='diagnosis-choice';
+    btn.textContent=choice.text;
+    btn.addEventListener('click',()=>{ if (puzzleChecked) return; document.querySelectorAll('.diagnosis-choice').forEach(b=>b.classList.remove('selected')); activeChoice=choice; btn.classList.add('selected'); });
+    compsEl.appendChild(btn);
+  });
+  qs('#mg-result').classList.add('hidden');
+  qs('#mg-result').className='mg-result hidden';
+  qs('#mg-modal .modal-actions').innerHTML=`
+    <button class="btn-primary" onclick="checkLogicLab()">SUBMIT ANSWER</button>
+    <button onclick="skipMinigame()">SKIP JOB</button>`;
+  show('mg-modal');
+}
+
+function checkLogicLab() {
+  if (!activePuzzle) return;
+  if (!activeChoice) {
+    const r=qs('#mg-result'); r.classList.remove('hidden'); r.className='mg-result fail'; r.textContent='Select an answer first.';
+    return;
+  }
+  puzzleChecked=true;
+  document.querySelectorAll('.diagnosis-choice').forEach(btn=>{
+    const match=activePuzzle.choices.find(c=>c.text===btn.textContent);
+    if (match?.correct) btn.classList.add('correct');
+    else if (btn.classList.contains('selected')) btn.classList.add('wrong');
+  });
+  const resultEl=qs('#mg-result');
+  resultEl.classList.remove('hidden');
+  if (activeChoice.correct) {
+    G.cash+=activeReward; G.reputation+=15;
+    G.totalEarned+=activeReward; G.todayIncome+=activeReward;
+    G.jobsDoneToday++;
+    G.concepts['logic_'+activePuzzle.id]={name:activePuzzle.title,learn:activePuzzle.learn};
+    resultEl.className='mg-result win';
+    const dayWarn=G.jobsDoneToday>=3?'<br><span class="warn">⚠ 3 JOBS DONE — day will advance when you collect.</span>':'';
+    resultEl.innerHTML=`✓ CORRECT — ₿${fmt(activeReward)} transferred. +15 REP.<br><br><strong>Explanation:</strong> ${activeChoice.explain}<br><br><strong>Engineering note:</strong> ${activePuzzle.learn}${dayWarn}`;
+    addLog(`Logic Lab: ${activePuzzle.title}. Earned ₿${fmt(activeReward)}.`,'success');
+    qs('#mg-modal .modal-actions').innerHTML=`<button class="btn-primary" onclick="closeMiniGame()">COLLECT ₿${fmt(activeReward)} ›</button>`;
+    render();
+  } else {
+    resultEl.className='mg-result fail';
+    resultEl.innerHTML=`✗ INCORRECT.<br><br>${activeChoice.explain}`;
+    qs('#mg-modal .modal-actions').innerHTML=`<button class="btn-primary" onclick="closeMiniGame()">CLOSE</button>`;
   }
 }
 
@@ -1820,14 +2339,15 @@ function renderContracts() {
   if (!G.availableJobs.length) { el.innerHTML='<p class="dim" style="font-size:11px">Jobs refresh each day.</p>'; return; }
   G.availableJobs.forEach((job,idx)=>{
     const t=job.puzzle.type;
-    const icon=t==='diagnosis'?'🔍':t==='foundry'?'⚗':t==='arena'?'⚔':'⚡';
-    const typeName=t==='diagnosis'?'Fault Diagnosis':t==='foundry'?'Foundry Sim':t==='arena'?'FPGA Arena':'Circuit Repair';
+    const isTut=job.isTutorial;
+    const icon=isTut?'★':t==='diagnosis'?'🔍':t==='foundry'?'⚗':t==='arena'?'⚔':t==='logic'?'◈':'⚡';
+    const typeName=isTut?'TUTORIAL — START HERE':t==='diagnosis'?'Fault Diagnosis':t==='foundry'?'Foundry Sim':t==='arena'?'FPGA Arena':t==='logic'?'Logic Lab':'Circuit Repair';
     const div=document.createElement('div');
-    div.className='contract-item ready';
+    div.className=isTut?'contract-item ready tutorial-job':'contract-item ready';
     div.innerHTML=`
       <div class="contract-name">${icon} ${job.puzzle.title}</div>
       <div class="contract-detail">Client: ${job.puzzle.client} · ${typeName}</div>
-      <div class="contract-reward">₿${fmt(job.reward)}${G.hasScope?' · scope enhanced':''} — tap to accept</div>`;
+      <div class="contract-reward">₿${fmt(job.reward)}${G.hasScope&&!isTut?' · scope enhanced':''} — tap to accept</div>`;
     div.addEventListener('click',()=>startJob(idx));
     el.appendChild(div);
   });
@@ -1926,6 +2446,10 @@ function startGame() {
   const name=((nameEl?.value?.trim()||'ANONYMOUS').toUpperCase().slice(0,20));
   localStorage.setItem('sf_agent_name', name);
   hide('intro-modal');
+  if (!localStorage.getItem('sf_tutorial_done')) {
+    const tPuzz=PUZZLES.find(p=>p.isTutorial);
+    if (tPuzz) G.availableJobs.unshift({puzzle:tPuzz, reward:200, isTutorial:true});
+  }
   if (SETTINGS.music) MUSIC.start();
 }
 
