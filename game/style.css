@@ -285,6 +285,32 @@ strong    { color: #fff; }
   border: 1px solid var(--border); padding: 10px;
   white-space: pre; overflow-x: auto;
 }
+@keyframes circuit-energize {
+  0%   { color: var(--green-dim); text-shadow: none; }
+  25%  { color: #39ff14;          text-shadow: 0 0 8px #39ff14, 0 0 18px #39ff14; }
+  50%  { color: #c8ffc8;          text-shadow: 0 0 12px #39ff14, 0 0 28px #39ff14, 0 0 55px rgba(57,255,20,.35); }
+  75%  { color: #39ff14;          text-shadow: 0 0 8px #39ff14, 0 0 18px #39ff14; }
+  100% { color: var(--green-dim); text-shadow: none; }
+}
+@keyframes circuit-fault {
+  0%, 100% { color: var(--green-dim); text-shadow: none; }
+  25%, 75%  { color: #ff5555; text-shadow: 0 0 8px #ff3333, 0 0 18px rgba(255,50,50,.4); }
+  50%       { color: #ff2222; text-shadow: 0 0 4px #ff0000; }
+}
+.mg-schematic.energized { animation: circuit-energize 0.65s ease-in-out 3; }
+.mg-schematic.faulted   { animation: circuit-fault 0.28s ease-in-out 3; }
+
+/* Smoke on broken/empty slots */
+@keyframes smoke-up {
+  0%   { opacity:0;    transform:translateY(4px)  scale(0.8); }
+  20%  { opacity:0.55; }
+  65%  { opacity:0.25; transform:translateY(-10px) scale(1.0); }
+  100% { opacity:0;    transform:translateY(-20px) scale(0.5); }
+}
+.smoke-wrap { display:flex; justify-content:center; gap:5px; height:14px; margin-top:3px; pointer-events:none; }
+.smoke-p    { color:var(--amber); font-size:11px; opacity:0; animation:smoke-up 2.2s ease-out infinite; }
+.smoke-p:nth-child(2) { animation-delay:0.73s; }
+.smoke-p:nth-child(3) { animation-delay:1.47s; }
 
 #mg-slots { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 

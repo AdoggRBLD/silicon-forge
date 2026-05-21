@@ -223,6 +223,68 @@ const MUSIC = {
 };
 
 // ================================================================
+//  SFX ENGINE
+// ================================================================
+const SFX = {
+  _tone(freq,t,dur,type='square',gain=0.12) {
+    const ctx=MUSIC.ctx; if (!ctx) return;
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(gain,t+0.01);
+    g.gain.setValueAtTime(gain,t+dur*0.65);
+    g.gain.linearRampToValueAtTime(0,t+dur);
+    o.connect(g); g.connect(MUSIC.masterGain); o.start(t); o.stop(t+dur);
+  },
+  _noise(t,dur,fType,fFreq,fQ,gain) {
+    const ctx=MUSIC.ctx; if (!ctx) return;
+    const sz=Math.floor(ctx.sampleRate*dur);
+    const buf=ctx.createBuffer(1,sz,ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for (let i=0;i<sz;i++) d[i]=Math.random()*2-1;
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    const f=ctx.createBiquadFilter(); f.type=fType; f.frequency.value=fFreq; f.Q.value=fQ;
+    const g2=ctx.createGain();
+    g2.gain.setValueAtTime(0,t);
+    g2.gain.linearRampToValueAtTime(gain,t+0.06);
+    g2.gain.setValueAtTime(gain*0.7,t+dur*0.4);
+    g2.gain.linearRampToValueAtTime(0,t+dur);
+    src.connect(f); f.connect(g2); g2.connect(MUSIC.masterGain); src.start(t); src.stop(t+dur);
+  },
+  _prep() {
+    MUSIC.init();
+    if (!MUSIC.ctx) return false;
+    if (MUSIC.ctx.state==='suspended') MUSIC.ctx.resume();
+    return true;
+  },
+  win() {
+    if (!SETTINGS.sfx||!this._prep()) return;
+    const t=MUSIC.ctx.currentTime;
+    [N.C4,N.E4,N.G4,N.C5].forEach((f,i)=>this._tone(f,t+i*0.07,0.18,'square',0.11));
+  },
+  fail() {
+    if (!SETTINGS.sfx||!this._prep()) return;
+    const t=MUSIC.ctx.currentTime;
+    this._tone(N.Bb3,t,0.09,'square',0.16);
+    this._tone(N.F3,t+0.10,0.22,'square',0.16);
+  },
+  bigWin() {
+    if (!SETTINGS.sfx||!this._prep()) return;
+    const t=MUSIC.ctx.currentTime;
+    [N.C4,N.E4,N.G4,N.C5,N.E5,N.G5].forEach((f,i)=>this._tone(f,t+i*0.07,0.28,'square',0.11));
+    this._noise(t+0.35,1.8,'bandpass',1800,1.5,0.16);
+    this._noise(t+0.35,1.8,'highpass', 900,0.7,0.07);
+  },
+  bigLoss() {
+    if (!SETTINGS.sfx||!this._prep()) return;
+    const t=MUSIC.ctx.currentTime;
+    [N.C5,N.Bb4,N.G4,N.Eb4,N.C4].forEach((f,i)=>this._tone(f,t+i*0.13,0.3,'triangle',0.10));
+    this._noise(t+0.55,2.0,'lowpass', 500,1.2,0.18);
+    this._noise(t+0.55,2.0,'bandpass',300,2.5,0.10);
+  },
+};
+
+// ================================================================
 //  SETTINGS
 // ================================================================
 let SETTINGS = { music: true, volume: 0.18, sfx: true, scanlines: true, trackIndex: 0 };
@@ -438,7 +500,7 @@ const PUZZLES = [
     client:'Shenzhen Proto House', rewardBase:680,
     problem:'A half-bridge MOSFET driver is oscillating at turn-on and the high-side gate charge is unstable. Both a gate resistor and a bootstrap capacitor are missing.',
     scopeHint:'Gate waveform: 40V/ns ringing at turn-on (no gate R). High-side gate-source voltage collapses mid-conduction (bootstrap cap empty). Need: 10Ω gate resistor to damp ringing, 100nF bootstrap cap to supply high-side charge pump.',
-    schematic:`  VCC_12V ──[BOOTSTRAP CAP SLOT]──┬── High-side gate supply\n                                    │\n                             [Gate driver IC]\n                                    │\n                         [GATE RES SLOT]── HI_MOSFET gate\n                                    │\n                               HI_MOSFET drain ── LOAD ── VCC\n                                    │\n                               HI_MOSFET source\n\n  Bootstrap: charges from VCC when low-side on\n  Gate R: slows dV/dt to prevent ringing`,
+    schematic:`  VCC_12V ──[SLOT A]──┬── High-side gate supply\n                        │\n                 [Gate driver IC]\n                        │\n             [SLOT B]── HI_MOSFET gate\n                        │\n                   HI_MOSFET drain ── LOAD ── VCC\n                        │\n                   HI_MOSFET source\n\n  Bootstrap: charges from VCC when low-side on\n  Gate R: slows dV/dt to prevent ringing`,
     slots:[
       { id:'sA', label:'SLOT A — Bootstrap cap (high-side charge pump)', accepts:'cap_100nf' },
       { id:'sB', label:'SLOT B — Gate resistor (damps switching ringing)', accepts:'res_10k' },
@@ -1080,6 +1142,29 @@ const PUZZLES = [
 ];
 
 // ================================================================
+//  PUZZLE CLUES  (shown on HINT button tap — plain language, no spoilers)
+// ================================================================
+const PUZZLE_CLUES = {
+  power_filter:           'The VCC line is noisy. You need something that stores charge and releases it during load spikes — like a water tower for electricity.',
+  led_driver:             'LEDs have no self-control — without a limiter they burn out instantly. Which component uses Ohm\'s Law to set the exact current?',
+  pull_up:                'An unconnected pin picks up random noise. You need something that gently pulls it to a known HIGH level whenever the button is not pressed.',
+  uart_idle:              'UART TX must sit HIGH between bytes (the "MARK" state). You need a component that pulls the line to VCC when nothing is actively driving it.',
+  bypass_cap:             'The crash happens in ~50ns during an ADC spike. You need a small, fast capacitor right at the VDD pin — not the big slow one.',
+  flyback_diode:          'When you switch off a motor, the coil\'s stored energy has to go somewhere or it destroys the MOSFET. You need something that gives that energy a safe path back to VCC.',
+  i2c_pullup:             'I2C devices can only pull lines LOW — they can\'t drive HIGH. Check the standard value for I2C at 400kHz: it\'s not the 10kΩ.',
+  crystal_load:           'The crystal needs small caps on both pins to tune its resonant frequency. Bigger caps kill the oscillation — match the crystal\'s CL spec.',
+  esd_protect:            'An ESD spike is 4,000 volts in about 1 nanosecond. A regular diode is too slow. You need the component designed to clamp ESD in under 1 ns.',
+  two_stage_filter:       'Two slots, two frequency ranges. The big slot handles slow large ripple (kHz). The small slot handles fast IC switching spikes (MHz). They cannot swap.',
+  half_bridge_drive:      'Slot A: needs a cap that charges during the low-side ON cycle to supply the high-side gate. Slot B: needs a resistor that slows gate turn-on to kill ringing.',
+  rs485_bias:             'A-line (non-inverting) must idle HIGH → pull-up. B-line (inverting) must idle LOW → pull-down. Same resistor value, opposite direction.',
+  spi_cs_float:           'CS is active-low — chip enables when CS goes LOW. When the MCU tri-states, a pull-up to VCC keeps CS HIGH (safe/deselected).',
+  mosfet_gate_pulldown:   'Gate charge is stored like a capacitor. Driver goes high-Z → gate floats above Vth → FET stays on. A resistor to GND drains that charge.',
+  ldo_bringup:            'Three slots: Slot A — big cap to prevent input sag. Slot B — small fast cap to stop LDO output oscillation. Slot C — pull-down to hold enable LOW until VIN is ready.',
+  tutorial_first_circuit: 'You need a small fast capacitor at the VDD pin. The 100nF absorbs MHz switching spikes. The big 100µF cap is too slow for this purpose.',
+  fpga_arena_v1:          'Opponent: ATTACK → BOOST → ATTACK. Counter: DEFEND absorbs the opening hit. BOOST amplifies your next attack. ATTACK lands boosted and finishes the bot.',
+};
+
+// ================================================================
 //  EVENTS
 // ================================================================
 const EVENTS = [
@@ -1706,17 +1791,22 @@ function openCircuitGame(puzz,reward) {
   qs('#mg-client').textContent=`${puzz.client} — ₿${fmt(reward)} reward${G.hasScope?' (scope enhanced)':''}`;
   qs('#mg-problem').textContent=puzz.problem;
   qs('#mg-schem-label').textContent='SCHEMATIC:';
-  qs('#mg-schematic').textContent=puzz.schematic;
+  const schemEl=qs('#mg-schematic');
+  schemEl.classList.remove('energized','faulted');
+  schemEl.textContent=puzz.schematic;
   const scopeEl=qs('#mg-scope-hint');
   if (G.hasScope){ scopeEl.textContent='〜 SCOPE READING: '+puzz.scopeHint; scopeEl.classList.remove('hidden'); }
   else scopeEl.classList.add('hidden');
   qs('#mg-tray-label').innerHTML='COMPONENT BIN <span class="dim">(tap to select):</span>';
+  const hintEl=qs('#mg-hint');
+  if (hintEl){ hintEl.classList.add('hidden'); hintEl.textContent=''; }
   const slotsEl=qs('#mg-slots');
   slotsEl.innerHTML=''; slotsEl.style.display='';
+  const SMOKE='<div class="smoke-wrap" aria-hidden="true"><span class="smoke-p">~</span><span class="smoke-p">~</span><span class="smoke-p">~</span></div>';
   puzz.slots.forEach(slot=>{
     const div=document.createElement('div');
     div.className='mg-slot'; div.dataset.slotId=slot.id;
-    div.innerHTML=`<div class="mg-slot-label">${slot.label}</div><div class="mg-slot-empty">[ empty — select component, then tap here ]</div>`;
+    div.innerHTML=`<div class="mg-slot-label">${slot.label}</div><div class="mg-slot-empty">[ empty — select component, then tap here ]</div>${SMOKE}`;
     div.addEventListener('click',()=>fillSlot(slot.id));
     slotsEl.appendChild(div);
   });
@@ -1733,6 +1823,7 @@ function openCircuitGame(puzz,reward) {
   qs('#mg-result').className='mg-result hidden';
   qs('#mg-modal .modal-actions').innerHTML=`
     <button class="btn-primary" onclick="checkCircuit()">CHECK CIRCUIT</button>
+    <button onclick="toggleHint()">HINT ▾</button>
     <button onclick="skipMinigame()">SKIP JOB</button>`;
   show('mg-modal');
 }
@@ -1777,7 +1868,12 @@ function checkCircuit() {
   });
   const resultEl=qs('#mg-result');
   resultEl.classList.remove('hidden');
+  const schem=qs('#mg-schematic');
+  schem.classList.remove('energized','faulted');
+  void schem.offsetWidth;
   if (allCorrect) {
+    schem.classList.add('energized');
+    SFX.win();
     G.cash+=activeReward; G.reputation+=15;
     G.totalEarned+=activeReward; G.todayIncome+=activeReward;
     G.jobsDoneToday++;
@@ -1791,9 +1887,32 @@ function checkCircuit() {
     qs('#mg-modal .modal-actions').innerHTML=`<button class="btn-primary" onclick="closeMiniGame()">COLLECT ₿${fmt(activeReward)} ›</button>`;
     render();
   } else {
+    schem.classList.add('faulted');
+    schem.addEventListener('animationend',()=>schem.classList.remove('faulted'),{once:true});
+    SFX.fail();
     puzzleChecked=false;
     resultEl.className='mg-result fail';
     resultEl.textContent='✗ INCORRECT — check highlighted slots and try again.';
+    activePuzzle.slots.forEach(slot=>{
+      const slotEl=document.querySelector(`[data-slot-id="${slot.id}"]`);
+      if (slotEl&&slotEl.classList.contains('wrong')&&!slotEl.querySelector('.smoke-wrap')){
+        slotEl.insertAdjacentHTML('beforeend','<div class="smoke-wrap" aria-hidden="true"><span class="smoke-p">~</span><span class="smoke-p">~</span><span class="smoke-p">~</span></div>');
+      }
+    });
+  }
+}
+
+function toggleHint() {
+  const hintEl=qs('#mg-hint');
+  if (!hintEl) return;
+  if (hintEl.classList.contains('hidden')) {
+    const clue=activePuzzle&&PUZZLE_CLUES[activePuzzle.id]
+      ?PUZZLE_CLUES[activePuzzle.id]
+      :'Read each component\'s hint line — it describes its electrical role.';
+    hintEl.textContent='▸ HINT: '+clue;
+    hintEl.classList.remove('hidden');
+  } else {
+    hintEl.classList.add('hidden');
   }
 }
 
@@ -1849,7 +1968,12 @@ function checkDiagnosis() {
   });
   const resultEl=qs('#mg-result');
   resultEl.classList.remove('hidden');
+  const diagSchem=qs('#mg-schematic');
+  diagSchem.classList.remove('energized','faulted');
+  void diagSchem.offsetWidth;
   if (activeChoice.correct) {
+    diagSchem.classList.add('energized');
+    SFX.win();
     G.cash+=activeReward; G.reputation+=15;
     G.totalEarned+=activeReward; G.todayIncome+=activeReward;
     G.jobsDoneToday++;
@@ -1861,6 +1985,9 @@ function checkDiagnosis() {
     qs('#mg-modal .modal-actions').innerHTML=`<button class="btn-primary" onclick="closeMiniGame()">COLLECT ₿${fmt(activeReward)} ›</button>`;
     render();
   } else {
+    diagSchem.classList.add('faulted');
+    diagSchem.addEventListener('animationend',()=>diagSchem.classList.remove('faulted'),{once:true});
+    SFX.fail();
     resultEl.className='mg-result fail';
     resultEl.innerHTML=`✗ INCORRECT.<br><br>${activeChoice.explain}`;
     qs('#mg-modal .modal-actions').innerHTML=`<button class="btn-primary" onclick="closeMiniGame()">CLOSE</button>`;
@@ -1938,7 +2065,12 @@ function checkFoundry() {
   const target=activePuzzle.targetMargin||0.60;
   const resultEl=qs('#mg-result');
   resultEl.classList.remove('hidden');
+  const fSchem=qs('#mg-schematic');
+  fSchem.classList.remove('energized','faulted');
+  void fSchem.offsetWidth;
   if (margin>=target) {
+    fSchem.classList.add('energized');
+    SFX.win();
     G.cash+=activeReward; G.reputation+=15;
     G.totalEarned+=activeReward; G.todayIncome+=activeReward;
     G.jobsDoneToday++;
@@ -1950,6 +2082,9 @@ function checkFoundry() {
     qs('#mg-modal .modal-actions').innerHTML=`<button class="btn-primary" onclick="closeMiniGame()">COLLECT ₿${fmt(activeReward)} ›</button>`;
     render();
   } else {
+    fSchem.classList.add('faulted');
+    fSchem.addEventListener('animationend',()=>fSchem.classList.remove('faulted'),{once:true});
+    SFX.fail();
     puzzleChecked=false;
     resultEl.className='mg-result fail';
     resultEl.textContent=`✗ MARGIN ${(margin*100).toFixed(0)}% — target is ${(target*100).toFixed(0)}%. Retune parameters and try again.`;
@@ -1999,7 +2134,12 @@ function checkLogicLab() {
   });
   const resultEl=qs('#mg-result');
   resultEl.classList.remove('hidden');
+  const llSchem=qs('#mg-schematic');
+  llSchem.classList.remove('energized','faulted');
+  void llSchem.offsetWidth;
   if (activeChoice.correct) {
+    llSchem.classList.add('energized');
+    SFX.win();
     G.cash+=activeReward; G.reputation+=15;
     G.totalEarned+=activeReward; G.todayIncome+=activeReward;
     G.jobsDoneToday++;
@@ -2011,6 +2151,9 @@ function checkLogicLab() {
     qs('#mg-modal .modal-actions').innerHTML=`<button class="btn-primary" onclick="closeMiniGame()">COLLECT ₿${fmt(activeReward)} ›</button>`;
     render();
   } else {
+    llSchem.classList.add('faulted');
+    llSchem.addEventListener('animationend',()=>llSchem.classList.remove('faulted'),{once:true});
+    SFX.fail();
     resultEl.className='mg-result fail';
     resultEl.innerHTML=`✗ INCORRECT.<br><br>${activeChoice.explain}`;
     qs('#mg-modal .modal-actions').innerHTML=`<button class="btn-primary" onclick="closeMiniGame()">CLOSE</button>`;
@@ -2147,6 +2290,7 @@ function checkOver() {
 function showGameOver() {
   const nw=netWorth(); const cfg=OP_CONFIG[G.operation];
   const won=cfg.goalCheck(nw);
+  if (won) SFX.bigWin(); else SFX.bigLoss();
   const titleEl=qs('#gameover-title');
   titleEl.textContent=won?`OPERATION ${G.operation} COMPLETE`:'GAME OVER';
   titleEl.className=`gameover-title ${won?'success':'danger'}`;
